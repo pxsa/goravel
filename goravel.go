@@ -3,9 +3,12 @@ package goravel
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -18,6 +21,13 @@ type Goravel struct {
 	ErrorLog *log.Logger
 	InfoLog  *log.Logger
 	RootPath string
+	Routes   *chi.Mux
+	config   config
+}
+
+type config struct {
+	port     string
+	renderer string
 }
 
 func (g *Goravel) New(rootPath string) error {
@@ -47,6 +57,13 @@ func (g *Goravel) New(rootPath string) error {
 	g.ErrorLog = errorLog
 	g.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
 	g.Version = version
+	g.RootPath = rootPath
+	g.Routes = g.routes().(*chi.Mux)
+
+	g.config = config{
+		port:     os.Getenv("PORT"),
+		renderer: os.Getenv("RENDERER"),
+	}
 
 	return nil
 }
@@ -63,6 +80,22 @@ func (g *Goravel) Init(p initPath) error {
 	return nil
 }
 
+// ListenAnd Serve starts the web server
+func (g *Goravel) ListenAndServe() {
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%s", os.Getenv("PORT")),
+		ErrorLog:     g.ErrorLog,
+		Handler:      g.routes(),
+		IdleTimeout:  30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+
+	g.InfoLog.Printf("Listening on port %s", os.Getenv("PORT"))
+	err := srv.ListenAndServe()
+	g.ErrorLog.Fatal(err)
+}
+
 func (g *Goravel) checkDotEnv(path string) error {
 	err := g.CreateFileIfNotExist(fmt.Sprintf("%s/.env", path))
 	if err != nil {
@@ -74,8 +107,8 @@ func (g *Goravel) checkDotEnv(path string) error {
 func (g *Goravel) startLoggers() (*log.Logger, *log.Logger) {
 	var infoLog *log.Logger
 	var errorLog *log.Logger
-	infoLog = log.New(os.Stdout, "INFO\t", log.Ldate | log.Ltime)
-	errorLog = log.New(os.Stdout, "ERROR\t", log.Ldate | log.Ltime | log.Lshortfile)
+	infoLog = log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
+	errorLog = log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 
 	return infoLog, errorLog
 }
