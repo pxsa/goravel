@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
+	"github.com/pxsa/goravel/render"
 )
 
 const version = "1.0.0"
@@ -22,6 +23,7 @@ type Goravel struct {
 	InfoLog  *log.Logger
 	RootPath string
 	Routes   *chi.Mux
+	Render   *render.Render
 	config   config
 }
 
@@ -65,6 +67,8 @@ func (g *Goravel) New(rootPath string) error {
 		renderer: os.Getenv("RENDERER"),
 	}
 
+	g.createRenderer()
+
 	return nil
 }
 
@@ -85,7 +89,7 @@ func (g *Goravel) ListenAndServe() {
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", os.Getenv("PORT")),
 		ErrorLog:     g.ErrorLog,
-		Handler:      g.routes(),
+		Handler:      g.Routes,
 		IdleTimeout:  30 * time.Second,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -111,4 +115,13 @@ func (g *Goravel) startLoggers() (*log.Logger, *log.Logger) {
 	errorLog = log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 
 	return infoLog, errorLog
+}
+
+func (g *Goravel) createRenderer() {
+	myRenderer := render.Render{
+		Renderer: g.config.renderer,
+		RootPath: g.RootPath,
+		Port:     g.config.port,
+	}
+	g.Render = &myRenderer
 }

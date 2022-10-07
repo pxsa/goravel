@@ -1,6 +1,6 @@
-package goravel 
+package goravel
 
 type initPath struct {
-	rootPath string
+	rootPath    string
 	folderNames []string
 }
