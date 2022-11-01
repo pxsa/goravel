@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/CloudyKit/jet/v6"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	"github.com/pxsa/goravel/render"
@@ -16,15 +17,16 @@ import (
 const version = "1.0.0"
 
 type Goravel struct {
-	AppName  string
-	Debug    bool
-	Version  string
-	ErrorLog *log.Logger
-	InfoLog  *log.Logger
-	RootPath string
-	Routes   *chi.Mux
-	Render   *render.Render
-	config   config
+	AppName   string
+	Debug     bool
+	Version   string
+	ErrorLog  *log.Logger
+	InfoLog   *log.Logger
+	RootPath  string
+	Routes    *chi.Mux
+	Render    *render.Render
+	JetRender *jet.Set
+	config    config
 }
 
 type config struct {
@@ -66,6 +68,11 @@ func (g *Goravel) New(rootPath string) error {
 		port:     os.Getenv("PORT"),
 		renderer: os.Getenv("RENDERER"),
 	}
+	var views = jet.NewSet(
+		jet.NewOSFileSystemLoader(fmt.Sprintf("%s/views", rootPath)),
+		jet.InDevelopmentMode(),
+	)
+	g.JetRender = views
 
 	g.createRenderer()
 
@@ -122,6 +129,7 @@ func (g *Goravel) createRenderer() {
 		Renderer: g.config.renderer,
 		RootPath: g.RootPath,
 		Port:     g.config.port,
+		JetViews: g.JetRender,
 	}
 	g.Render = &myRenderer
 }
