@@ -89,6 +89,7 @@ func (g *Goravel) New(rootPath string) error {
 		CookieName: g.config.cookie.name,
 		SessionType: g.config.sessionType,
 		CookieDomain: g.config.cookie.domain,
+		CookieSecure: g.config.cookie.secure,
 	}
 	g.Session = sess.InitSession()
 
