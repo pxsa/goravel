@@ -28,6 +28,7 @@ type Goravel struct {
 	Routes    *chi.Mux
 	Render    *render.Render
 	Session   *scs.SessionManager
+	DB        Database
 	JetRender *jet.Set
 	config    config
 }
@@ -37,6 +38,7 @@ type config struct {
 	renderer    string
 	cookie      cookieConfig
 	sessionType string
+	database    databaseConfig
 }
 
 func (g *Goravel) New(rootPath string) error {
@@ -62,6 +64,21 @@ func (g *Goravel) New(rootPath string) error {
 
 	// crate loggers
 	infoLog, errorLog := g.startLoggers()
+
+	// connect to database
+	dbType := os.Getenv("DATABASE_TYPE")
+	if dbType != "" {
+		db, err := g.OpenDB(dbType, g.BuildDSN())
+		if err != nil {
+			errorLog.Println(err)
+			os.Exit(1)
+		}
+		g.DB = Database{
+			DatabaseType: dbType,
+			Pool:         db,
+		}
+	}
+
 	g.InfoLog = infoLog
 	g.ErrorLog = errorLog
 	g.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
@@ -80,16 +97,20 @@ func (g *Goravel) New(rootPath string) error {
 			domain:   os.Getenv("COOKIE_DOMAIN"),
 		},
 		sessionType: os.Getenv("SESSION_TYPE"),
+		database: databaseConfig{
+			database: os.Getenv("DATABASE_TYPE"),
+			dsn:      g.BuildDSN(),
+		},
 	}
 
 	// create session
-	sess := session.Session {
+	sess := session.Session{
 		CookieLifeTime: g.config.cookie.lifeTime,
-		CookiePersist: g.config.cookie.persist,
-		CookieName: g.config.cookie.name,
-		SessionType: g.config.sessionType,
-		CookieDomain: g.config.cookie.domain,
-		CookieSecure: g.config.cookie.secure,
+		CookiePersist:  g.config.cookie.persist,
+		CookieName:     g.config.cookie.name,
+		SessionType:    g.config.sessionType,
+		CookieDomain:   g.config.cookie.domain,
+		CookieSecure:   g.config.cookie.secure,
 	}
 	g.Session = sess.InitSession()
 
@@ -124,8 +145,10 @@ func (g *Goravel) ListenAndServe() {
 		Handler:      g.Routes,
 		IdleTimeout:  30 * time.Second,
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 600 * time.Second,
 	}
+
+	defer g.DB.Pool.Close()
 
 	g.InfoLog.Printf("Listening on port %s", os.Getenv("PORT"))
 	err := srv.ListenAndServe()
@@ -157,4 +180,26 @@ func (g *Goravel) createRenderer() {
 		JetViews: g.JetRender,
 	}
 	g.Render = &myRenderer
+}
+
+func (c *Goravel) BuildDSN() string {
+	var dsn string
+
+	switch os.Getenv("DATABASE_TYPE") {
+	case "postgres", "postgresql":
+		dsn = fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s timezone=UTC connect_timeout=5",
+			os.Getenv("DATABASE_HOST"),
+			os.Getenv("DATABASE_PORT"),
+			os.Getenv("DATABASE_USER"),
+			os.Getenv("DATABASE_NAME"),
+			os.Getenv("DATABASE_SSL_MODE"))
+
+		if os.Getenv("DATABASE_PASS") != "" {
+			dsn = fmt.Sprintf("%s password=%s", dsn, os.Getenv("DATABASE_PASS"))
+		}
+
+	default:
+	}
+
+	return dsn
 }
